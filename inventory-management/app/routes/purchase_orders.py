@@ -66,6 +66,9 @@ def receive_purchase_order(po_id):
     )
     store.transactions[transaction_id] = transaction
 
+    # Update product stock when an order is received
+    store.products[po.product_id].quantity_on_hand += po.quantity_ordered
+
     # BUG: the transaction is recorded but the product's quantity_on_hand is
     # never updated. Receiving a purchase order should increment stock, but
     # the line below is intentionally missing:
