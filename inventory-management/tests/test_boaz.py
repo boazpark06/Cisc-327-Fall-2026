@@ -266,3 +266,59 @@ def test_receiving_purchase_order_updates_stock(client):
     assert after.get_json()["quantity_on_hand"] == 30
 
 
+def test_receiving_order_increases_stock_only_once(client):
+    product_id, order_id = setup_purchase_order(client)
+
+    # Receive 20 units, increasing stock from 10 to 30
+    first = client.put(f"/purchase-orders/{order_id}/receive")
+    assert first.status_code == 200
+
+    # Receiving the same order again should fail
+    second = client.put(f"/purchase-orders/{order_id}/receive")
+    assert second.status_code == 400
+
+    # Stock must remain at 30
+    stock = client.get(f"/products/{product_id}/stock-level")
+    assert stock.get_json()["quantity_on_hand"] == 30
+
+    # Only one incoming transaction should exist
+    transactions = client.get("/transactions").get_json()
+    assert len(transactions) == 1
+
+
+def test_receiving_multiple_orders_accumulates_stock(client):
+    product_id, first_order_id = setup_purchase_order(client)
+
+    # Retrieve the supplier from the first order
+    first_order = client.get(
+        f"/purchase-orders/{first_order_id}"
+    ).get_json()
+
+    # Create a second purchase order for 5 units
+    second_response = client.post("/purchase-orders", json={
+        "supplier_id": first_order["supplier_id"],
+        "product_id": product_id,
+        "quantity_ordered": 5
+    })
+
+    assert second_response.status_code == 201
+    second_order_id = second_response.get_json()["id"]
+
+    # Receive both purchase orders
+    first = client.put(f"/purchase-orders/{first_order_id}/receive")
+    second = client.put(f"/purchase-orders/{second_order_id}/receive")
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+
+    # Initial stock 10 + 20 + 5 = 35
+    stock = client.get(f"/products/{product_id}/stock-level")
+    assert stock.get_json()["quantity_on_hand"] == 35
+
+    # Verify both incoming transactions
+    transactions = client.get("/transactions").get_json()
+    assert len(transactions) == 2
+    assert sum(t["quantity"] for t in transactions) == 25
+
+
+
