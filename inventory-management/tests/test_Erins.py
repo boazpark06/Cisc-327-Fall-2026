@@ -279,3 +279,42 @@ def test_filter_by_supplier(client):
     assert len(transactions) == 1
     assert transactions[0]["supplier_id"] == 10
     assert transactions[0]["quantity"] == 5
+
+
+# feature add, product search by name test
+
+def test_search_product_by_name(client):
+    p1 = add_prod(client, name="test1", sku="1", stock=15)
+    p2 = add_prod(client, name="exclude", sku="2", stock=20)
+
+    response = client.get("/products?name=test")
+
+    assert response.status_code == 200
+
+    products = response.get_json()
+
+    assert len(products) == 1
+    assert products[0]["id"] == p1["id"]
+    assert products[0]["name"] == "test1"
+    assert products[0]["quantity_on_hand"] == 15
+
+    assert p2["id"] not in {p["id"] for p in products}
+# feature add, product search by sku test
+
+def test_search_product_by_sku(client):
+    p1 = add_prod(client, name="Hex Bolt", sku="B001", stock=15)
+    p2 = add_prod(client, name="Wood Screw", sku="S001", stock=20)
+
+    response = client.get("/products?sku=b001")
+
+    assert response.status_code == 200
+
+    products = response.get_json()
+
+    assert len(products) == 1
+    assert products[0]["id"] == p1["id"]
+    assert products[0]["name"] == "Hex Bolt"
+    assert products[0]["sku"] == "B001"
+    assert products[0]["quantity_on_hand"] == 15
+
+    assert p2["id"] not in {p["id"] for p in products}
