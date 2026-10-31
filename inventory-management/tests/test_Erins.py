@@ -108,3 +108,74 @@ def test_delete_product(client):
     products = client.get("/products").get_json()
 
     assert all(p["id"] != p1["id"] for p in products)
+
+# level test
+
+def test_stock_level(client):
+    p1 = add_prod(client, name="testvar7", sku="7", stock=25)
+
+    response = client.get(f"/products/{p1['id']}/stock-level")
+
+    assert response.status_code == 200
+
+    stock = response.get_json()
+
+    assert stock["product_id"] == p1["id"]
+    assert stock["quantity_on_hand"] == 25
+
+    client.put(f"/products/{p1['id']}", json={
+        "quantity_on_hand": 10
+    })
+
+    updated = client.get(f"/products/{p1['id']}/stock-level")
+
+    assert updated.status_code == 200
+    assert updated.get_json()["quantity_on_hand"] == 10
+
+# stock in test
+
+def test_incoming_stock(client):
+    p1 = add_prod(client, name="testvar8", sku="8", stock=10)
+
+    response = client.post("/transactions", json={
+        "product_id": p1["id"],
+        "type": "IN",
+        "quantity": 5
+    })
+
+    assert response.status_code == 201
+
+    transaction = response.get_json()
+
+    assert transaction["product_id"] == p1["id"]
+    assert transaction["type"] == "IN"
+    assert transaction["quantity"] == 5
+
+    check = client.get(f"/products/{p1['id']}")
+
+    assert check.status_code == 200
+    assert check.get_json()["quantity_on_hand"] == 15
+
+# stock out test
+
+def test_outgoing_stock(client):
+    p1 = add_prod(client, name="testvar9", sku="9", stock=15)
+
+    response = client.post("/transactions", json={
+        "product_id": p1["id"],
+        "type": "OUT",
+        "quantity": 5
+    })
+
+    assert response.status_code == 201
+
+    transaction = response.get_json()
+
+    assert transaction["product_id"] == p1["id"]
+    assert transaction["type"] == "OUT"
+    assert transaction["quantity"] == 5
+
+    check = client.get(f"/products/{p1['id']}")
+
+    assert check.status_code == 200
+    assert check.get_json()["quantity_on_hand"] == 10
