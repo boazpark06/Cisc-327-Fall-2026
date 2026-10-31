@@ -179,3 +179,103 @@ def test_outgoing_stock(client):
 
     assert check.status_code == 200
     assert check.get_json()["quantity_on_hand"] == 10
+
+# transaction list test
+
+def test_list_transactions(client):
+    p1 = add_prod(client, name="testvar10", sku="10", stock=10)
+
+    response1 = client.post("/transactions", json={
+        "product_id": p1["id"],
+        "type": "IN",
+        "quantity": 5
+    })
+
+    response2 = client.post("/transactions", json={
+        "product_id": p1["id"],
+        "type": "OUT",
+        "quantity": 3
+    })
+
+    assert response1.status_code == 201
+    assert response2.status_code == 201
+
+    response = client.get("/transactions")
+
+    assert response.status_code == 200
+
+    transactions = response.get_json()
+
+    assert len(transactions) == 2
+
+    assert transactions[0]["type"] == "IN"
+    assert transactions[0]["quantity"] == 5
+
+    assert transactions[1]["type"] == "OUT"
+    assert transactions[1]["quantity"] == 3
+
+    assert transactions[0]["product_id"] == p1["id"]
+    assert transactions[1]["product_id"] == p1["id"]
+
+    check = client.get(f"/products/{p1['id']}")
+
+    assert check.get_json()["quantity_on_hand"] == 12
+
+# product filter test
+
+# filter transactions by product test
+
+def test_filter_by_product(client):
+    p1 = add_prod(client, name="testvar10", sku="10", stock=10)
+    p2 = add_prod(client, name="testvar11", sku="11", stock=10)
+
+    client.post("/transactions", json={
+        "product_id": p1["id"],
+        "type": "IN",
+        "quantity": 5
+    })
+
+    client.post("/transactions", json={
+        "product_id": p2["id"],
+        "type": "IN",
+        "quantity": 3
+    })
+
+    response = client.get(f"/transactions?product_id={p1['id']}")
+
+    assert response.status_code == 200
+
+    transactions = response.get_json()
+
+    assert len(transactions) == 1
+    assert transactions[0]["product_id"] == p1["id"]
+    assert transactions[0]["quantity"] == 5
+
+# supplier filter test
+
+def test_filter_by_supplier(client):
+    p1 = add_prod(client, name="testvar12", sku="12", stock=10)
+
+    client.post("/transactions", json={
+        "product_id": p1["id"],
+        "supplier_id": 10,
+        "type": "IN",
+        "quantity": 5
+    })
+
+    client.post("/transactions", json={
+        "product_id": p1["id"],
+        "supplier_id": 20,
+        "type": "IN",
+        "quantity": 3
+    })
+
+    response = client.get("/transactions?supplier_id=10")
+
+    assert response.status_code == 200
+
+    transactions = response.get_json()
+
+    assert len(transactions) == 1
+    assert transactions[0]["supplier_id"] == 10
+    assert transactions[0]["quantity"] == 5
