@@ -43,6 +43,8 @@ app working without a REST client, and calls the same in-memory store.
 | Method | Path | Description |
 |---|---|---|
 | GET | `/products` | List all products |
+| GET | `/products?name=<name> ` | Search products by name, supports partial matching |
+| GET | `/products?sku=<sku>` | Search products by SKU (exact match, case insensitive) |
 | POST | `/products` | Create a product |
 | GET | `/products/<id>` | Get one product |
 | PUT | `/products/<id>` | Update a product |
