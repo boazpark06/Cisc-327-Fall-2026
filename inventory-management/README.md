@@ -55,6 +55,7 @@ app working without a REST client, and calls the same in-memory store.
 | DELETE | `/suppliers/<id>` | Delete a supplier |
 | POST | `/transactions` | Record a stock movement (`product_id`, `type`: IN/OUT, `quantity`, optional `supplier_id`) |
 | GET | `/transactions?product_id=&supplier_id=` | Look up transactions |
+| PUT | `/purchase-orders/<id>/receive` | Mark an order as received, record an incoming transaction, and increase product stock by the ordered quantity |
 
 ## Tests
 
