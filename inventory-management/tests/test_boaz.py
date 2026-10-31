@@ -76,3 +76,110 @@ def test_delete_supplier(client):
     # Verify it no longer exists
     response = client.get(f"/suppliers/{supplier_id}")
     assert response.status_code == 404
+
+
+def test_list_supplier_products(client):
+    # Create a supplier
+    supplier = client.post("/suppliers", json={
+        "name": "ABC Supplies",
+        "contact_email": "abc@example.com"
+    }).get_json()
+
+    # Create a product
+    product = client.post("/products", json={
+        "name": "Hammer",
+        "sku": "HAM-001",
+        "quantity_on_hand": 10
+    }).get_json()
+
+    # Record incoming stock from the supplier
+    transaction = client.post("/transactions", json={
+        "product_id": product["id"],
+        "supplier_id": supplier["id"],
+        "type": "IN",
+        "quantity": 5
+    })
+
+    assert transaction.status_code == 201
+
+    # Check that the supplier is associated with this product
+    response = client.get(f"/suppliers/{supplier['id']}/products")
+
+    assert response.status_code == 200
+    products = response.get_json()
+    assert len(products) == 1
+    assert products[0]["name"] == "Hammer"
+
+
+def test_list_purchase_orders(client):
+    # Initially there should be no purchase orders
+    response = client.get("/purchase-orders")
+
+    assert response.status_code == 200
+    assert response.get_json() == []
+
+
+def test_create_purchase_order(client):
+    # Create a supplier
+    supplier = client.post("/suppliers", json={
+        "name": "ABC Supplies",
+        "contact_email": "abc@example.com"
+    }).get_json()
+
+    # Create a product
+    product = client.post("/products", json={
+        "name": "Hammer",
+        "sku": "HAM-001",
+        "quantity_on_hand": 10
+    }).get_json()
+
+    # Create a purchase order for 20 units
+    response = client.post("/purchase-orders", json={
+        "supplier_id": supplier["id"],
+        "product_id": product["id"],
+        "quantity_ordered": 20
+    })
+
+    assert response.status_code == 201
+
+    order = response.get_json()
+    assert order["supplier_id"] == supplier["id"]
+    assert order["product_id"] == product["id"]
+    assert order["quantity_ordered"] == 20
+    assert order["status"] == "pending"
+
+    # Verify that the order was saved
+    orders = client.get("/purchase-orders").get_json()
+    assert len(orders) == 1
+    assert orders[0]["id"] == order["id"]
+
+
+def test_get_purchase_order(client):
+    # Create a supplier
+    supplier = client.post("/suppliers", json={
+        "name": "ABC Supplies",
+        "contact_email": "abc@example.com"
+    }).get_json()
+
+    # Create a product
+    product = client.post("/products", json={
+        "name": "Hammer",
+        "sku": "HAM-001",
+        "quantity_on_hand": 10
+    }).get_json()
+
+    # Create a purchase order
+    order = client.post("/purchase-orders", json={
+        "supplier_id": supplier["id"],
+        "product_id": product["id"],
+        "quantity_ordered": 20
+    }).get_json()
+
+    # Retrieve the purchase order
+    response = client.get(f"/purchase-orders/{order['id']}")
+
+    assert response.status_code == 200
+    assert response.get_json()["id"] == order["id"]
+    assert response.get_json()["quantity_ordered"] == 20
+    assert response.get_json()["status"] == "pending"
+
