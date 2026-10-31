@@ -183,3 +183,86 @@ def test_get_purchase_order(client):
     assert response.get_json()["quantity_ordered"] == 20
     assert response.get_json()["status"] == "pending"
 
+
+# Helper function to create a supplier, product, and purchase order
+def setup_purchase_order(client):
+    supplier = client.post("/suppliers", json={
+        "name": "ABC Supplies",
+        "contact_email": "abc@example.com"
+    }).get_json()
+
+    product = client.post("/products", json={
+        "name": "Hammer",
+        "sku": "HAM-001",
+        "quantity_on_hand": 10
+    }).get_json()
+
+    order = client.post("/purchase-orders", json={
+        "supplier_id": supplier["id"],
+        "product_id": product["id"],
+        "quantity_ordered": 20
+    }).get_json()
+
+    return product["id"], order["id"]
+
+
+def test_receive_purchase_order(client):
+    product_id, order_id = setup_purchase_order(client)
+
+    # Receive the purchase order
+    response = client.put(f"/purchase-orders/{order_id}/receive")
+
+    assert response.status_code == 200
+    assert response.get_json()["status"] == "received"
+    assert response.get_json()["received_date"] is not None
+
+    # Verify an incoming transaction was recorded
+    transactions = client.get("/transactions").get_json()
+
+    assert len(transactions) == 1
+    assert transactions[0]["product_id"] == product_id
+    assert transactions[0]["type"] == "IN"
+    assert transactions[0]["quantity"] == 20
+
+
+def test_receive_nonexistent_purchase_order(client):
+    # Attempt to receive an order that does not exist
+    response = client.put("/purchase-orders/999/receive")
+
+    assert response.status_code == 404
+    assert response.get_json()["error"] == "Purchase order not found"
+
+
+def test_receive_purchase_order_twice(client):
+    product_id, order_id = setup_purchase_order(client)
+
+    # First receipt should succeed
+    first = client.put(f"/purchase-orders/{order_id}/receive")
+    assert first.status_code == 200
+
+    # Second receipt should be rejected
+    second = client.put(f"/purchase-orders/{order_id}/receive")
+    assert second.status_code == 400
+
+    # The transaction should only be recorded once
+    transactions = client.get("/transactions").get_json()
+    assert len(transactions) == 1
+
+
+def test_receiving_purchase_order_updates_stock(client):
+    product_id, order_id = setup_purchase_order(client)
+
+    # Initial stock is 10
+    before = client.get(f"/products/{product_id}/stock-level")
+    assert before.get_json()["quantity_on_hand"] == 10
+
+    # Receive 20 additional units
+    response = client.put(f"/purchase-orders/{order_id}/receive")
+    assert response.status_code == 200
+
+    # Expected stock: 10 + 20 = 30
+    after = client.get(f"/products/{product_id}/stock-level")
+
+    assert after.get_json()["quantity_on_hand"] == 30
+
+
