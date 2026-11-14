@@ -1,3 +1,9 @@
+from notification_service import (
+    send_notification,
+    SUBJECT_PREFIX,
+    DEFAULT_RECIPIENT,
+)
+
 from flask import Blueprint, jsonify, request
 
 from app import store
@@ -27,6 +33,7 @@ def create_transaction():
 
     quantity = data["quantity"]
     tx_type = data["type"]
+    previous_quantity = product.quantity_on_hand
 
     if tx_type == "IN":
         product.quantity_on_hand += quantity
@@ -43,5 +50,28 @@ def create_transaction():
         type=tx_type,
         quantity=quantity,
     )
+    #store.transactions[transaction_id] = transaction
+    #return jsonify(transaction.to_dict()), 201
     store.transactions[transaction_id] = transaction
-    return jsonify(transaction.to_dict()), 201
+
+    response_data = transaction.to_dict()
+
+    # Send an alert when an outgoing transaction causes low stock
+    if (
+        tx_type == "OUT"
+        and previous_quantity > product.reorder_level
+        and product.quantity_on_hand <= product.reorder_level
+    ):
+        recipient = DEFAULT_RECIPIENT
+        subject = f"{SUBJECT_PREFIX} Low stock alert"
+        message = (
+            f"{product.name} (SKU: {product.sku}) is low on stock: "
+            f"{product.quantity_on_hand} units remaining "
+            f"(reorder level: {product.reorder_level})."
+        )
+
+        response_data["notification_sent"] = send_notification(
+            recipient, subject, message
+        )
+
+    return jsonify(response_data), 201
