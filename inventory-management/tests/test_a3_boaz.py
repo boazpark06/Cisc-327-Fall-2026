@@ -78,3 +78,115 @@ def test_low_stock_notification_mock(client):
     assert stock_response.status_code == 200
     assert stock_response.get_json()["quantity_on_hand"] == 9
 
+
+def test_low_stock_products(client):
+    # Create a product at the reorder level
+    low_product = client.post("/products", json={
+        "name": "Bolts",
+        "sku": "BOLT-001",
+        "quantity_on_hand": 5,
+        "reorder_level": 5
+    }).get_json()
+
+    # Create a product with sufficient stock
+    high_product = client.post("/products", json={
+        "name": "Screws",
+        "sku": "SCREW-001",
+        "quantity_on_hand": 20,
+        "reorder_level": 5
+    }).get_json()
+
+    # Request products that are low on stock
+    response = client.get("/products/low-stock")
+
+    assert response.status_code == 200
+
+    products = response.get_json()
+    product_ids = [p["id"] for p in products]
+
+    # Only the low-stock product should appear
+    assert low_product["id"] in product_ids
+    assert high_product["id"] not in product_ids
+    assert len(products) == 1
+
+
+def test_nonexistent_product_operations(client):
+    # Attempt to retrieve a nonexistent product
+    response = client.get("/products/999")
+    assert response.status_code == 404
+    assert response.get_json()["error"] == "Product not found"
+
+    # Attempt to update a nonexistent product
+    response = client.put("/products/999", json={
+        "name": "Updated Product"
+    })
+    assert response.status_code == 404
+    assert response.get_json()["error"] == "Product not found"
+
+    # Attempt to delete a nonexistent product
+    response = client.delete("/products/999")
+    assert response.status_code == 404
+    assert response.get_json()["error"] == "Product not found"
+
+
+def test_create_purchase_order_invalid_supplier(client):
+    # Try to create an order with a nonexistent supplier
+    response = client.post("/purchase-orders", json={
+        "supplier_id": 999,
+        "product_id": 1,
+        "quantity_ordered": 10
+    })
+
+    assert response.status_code == 404
+    assert response.get_json()["error"] == "Supplier not found"
+
+    # No purchase order should have been created
+    assert client.get("/purchase-orders").get_json() == []
+
+
+def test_create_purchase_order_invalid_product(client):
+    # Create a valid supplier
+    supplier_response = client.post("/suppliers", json={
+        "name": "Hardware Supplier",
+        "contact_email": "supplier@example.com"
+    })
+
+    assert supplier_response.status_code == 201
+    supplier_id = supplier_response.get_json()["id"]
+
+    # Try to order a nonexistent product
+    response = client.post("/purchase-orders", json={
+        "supplier_id": supplier_id,
+        "product_id": 999,
+        "quantity_ordered": 10
+    })
+
+    assert response.status_code == 404
+    assert response.get_json()["error"] == "Product not found"
+
+    # No purchase order should have been created
+    assert client.get("/purchase-orders").get_json() == []
+
+
+def test_get_nonexistent_purchase_order_a3(client):
+    # Try to retrieve an order that doesn't exist
+    response = client.get("/purchase-orders/999")
+
+    assert response.status_code == 404
+    assert response.get_json()["error"] == "Purchase order not found"
+
+    # The purchase-order collection remains empty
+    assert client.get("/purchase-orders").get_json() == []
+
+
+def test_nonexistent_product_stock_level(client):
+    # Request stock information for a product that doesn't exist
+    response = client.get("/products/999/stock-level")
+
+    # Verify the application handles the missing product
+    assert response.status_code == 404
+    assert response.get_json()["error"] == "Product not found"
+
+
+
+
