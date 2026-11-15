@@ -188,5 +188,41 @@ def test_nonexistent_product_stock_level(client):
     assert response.get_json()["error"] == "Product not found"
 
 
+def test_update_nonexistent_supplier_a3(client):
+    # Attempt to update a supplier that does not exist
+    response = client.put("/suppliers/999", json={
+        "name": "Updated Supplier"
+    })
+
+    assert response.status_code == 404
+    assert response.get_json()["error"] == "Supplier not found"
+
+    # Verify no suppliers were created
+    assert client.get("/suppliers").get_json() == []
+
+
+def test_delete_nonexistent_supplier_a3(client):
+    # Attempt to delete a supplier that does not exist
+    response = client.delete("/suppliers/999")
+
+    assert response.status_code == 404
+    assert response.get_json()["error"] == "Supplier not found"
+
+    # Verify the supplier collection remains empty
+    assert client.get("/suppliers").get_json() == []
+
+
+def test_get_products_nonexistent_supplier_a3(client):
+    # Attempt to retrieve products for a nonexistent supplier
+    response = client.get("/suppliers/999/products")
+
+    assert response.status_code == 404
+    assert response.get_json()["error"] == "Supplier not found"
+
+    # Verify no products were affected
+    assert client.get("/products").get_json() == []
+
+
+
 
 
